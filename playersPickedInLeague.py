@@ -14,8 +14,8 @@ LEAGUE_H2H_STANDING_SUBURL = "leagues-h2h/"
 TEAM_ENTRY_SUBURL = "entry/"
 PLAYERS_INFO_SUBURL = "bootstrap-static/"
 PLAYERS_INFO_FILENAME = "output/allPlayersInfo.json"
-USERNAME = 'fantasy@netmail3.net' 
-PASSWORD =  'FPLshow#123'
+USERNAME = 'alphago@yahoo.com'
+PASSWORD = 'alphago123git'
 
 USER_SUMMARY_URL = FPL_URL + USER_SUMMARY_SUBURL
 PLAYERS_INFO_URL = FPL_URL + PLAYERS_INFO_SUBURL
@@ -48,7 +48,7 @@ def getUserEntryIds(league_id, ls_page, league_Standing_Url):
         jsonResponse = r.json()
         managers = jsonResponse["standings"]["results"]
         if not managers:
-            print "Total managers :",len(entries)
+            print (f"Total managers :{len(entries)}")
             break
 
         for player in managers:
@@ -68,7 +68,7 @@ def getplayersPickedForEntryId(entry_id, GWNumber):
         picks = jsonResponse["picks"]
     except:
         if jsonResponse["detail"]:
-            print "entry_id "+str(entry_id)+" doesn't have info for this gameweek" 
+            print(f"entry_id {str(entry_id)} doesn't have info for this gameweek")
         return None, None
     elements = []
     captainId = 1
@@ -87,75 +87,78 @@ def getAllPlayersDetailedJson():
 
 # writes the results to csv file
 def writeToFile(countOfplayersPicked, fileName):
-    with open(fileName, 'w') as out:
+    with open(fileName, 'wb') as out:
         csv_out = csv.writer(out)
         csv_out.writerow(['name', 'num'])
         for row in countOfplayersPicked:
             csv_out.writerow(row)
 
 # Main Script
+def main():
+    parser = argparse.ArgumentParser(description='Get players picked in your league in a certain GameWeek')
+    parser.add_argument('-l', '--league', help='league entry id', required=True)
+    parser.add_argument('-g', '--gameweek', help='gameweek number', required=True)
+    parser.add_argument('-t', '--type', help='league type')
+    parser.add_argument('-d', '--debug', help='deubg mode on')
+    args = vars(parser.parse_args())
 
-parser = argparse.ArgumentParser(description='Get players picked in your league in a certain GameWeek')
-parser.add_argument('-l','--league', help='league entry id', required=True)
-parser.add_argument('-g','--gameweek', help='gameweek number', required=True)
-parser.add_argument('-t', '--type', help='league type')
-parser.add_argument('-d', '--debug', help='deubg mode on')
-args = vars(parser.parse_args())
+    if args['debug']:
+        logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
-if args['debug']:
-    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+    getPlayersInfo()
+    playerElementIdToNameMap = {}
+    allPlayers = getAllPlayersDetailedJson()
+    for element in allPlayers["elements"]:
+        playerElementIdToNameMap[element["id"]] = element["web_name"]  # .encode('ascii', 'ignore')
 
-getPlayersInfo()
-playerElementIdToNameMap = {}
-allPlayers = getAllPlayersDetailedJson()
-for element in allPlayers["elements"]:
-    playerElementIdToNameMap[element["id"]] = element["web_name"]#.encode('ascii', 'ignore')
+    countOfplayersPicked = {}
+    countOfCaptainsPicked = {}
+    totalNumberOfPlayersCount = 0
+    pageCount = START_PAGE
+    GWNumber = args['gameweek']
+    leagueIdSelected = args['league']
 
-countOfplayersPicked = {}
-countOfCaptainsPicked = {}
-totalNumberOfPlayersCount = 0
-pageCount = START_PAGE
-GWNumber = args['gameweek']
-leagueIdSelected = args['league']
-
-if args['type'] == "h2h":
-    leagueStandingUrl = FPL_URL + LEAGUE_H2H_STANDING_SUBURL
-    print("h2h league mode")
-else:
-    leagueStandingUrl = FPL_URL + LEAGUE_CLASSIC_STANDING_SUBURL
-    print("classic league mode")
-
-
-try:
-    entries = getUserEntryIds(leagueIdSelected, pageCount, leagueStandingUrl)
-except Exception, err:
-    print "Error occured in getting entries/managers in the league."
-    print err
-    raise
-
-for entry in tqdm(entries):
-    try:
-        elements, captainId = getplayersPickedForEntryId(entry, GWNumber)
-    except Exception, err:
-        print "Error occured in getting palyers and captain of the entry/manager"
-        print err
-        raise
-    if not elements:
-        continue
-    for element in elements:
-        name = playerElementIdToNameMap[element]
-        if name in countOfplayersPicked:
-            countOfplayersPicked[name] += 1
-        else:
-            countOfplayersPicked[name] = 1
-
-    captainName = playerElementIdToNameMap[captainId]
-    if captainName in countOfCaptainsPicked:
-        countOfCaptainsPicked[captainName] += 1
+    if args['type'] == "h2h":
+        leagueStandingUrl = FPL_URL + LEAGUE_H2H_STANDING_SUBURL
+        print("h2h league mode")
     else:
-        countOfCaptainsPicked[captainName] = 1
+        leagueStandingUrl = FPL_URL + LEAGUE_CLASSIC_STANDING_SUBURL
+        print("classic league mode")
 
-listOfcountOfplayersPicked = sorted(countOfplayersPicked.items(), key=lambda x: x[1], reverse=True)
-writeToFile(listOfcountOfplayersPicked, "output/GW"+str(GWNumber)+" Players "+str(leagueIdSelected)+".csv")
-listOfCountOfCaptainsPicked = sorted(countOfCaptainsPicked.items(), key=lambda x: x[1], reverse=True)
-writeToFile(listOfCountOfCaptainsPicked, "output/GW"+str(GWNumber)+" Captains "+str(leagueIdSelected)+".csv")
+    try:
+        entries = getUserEntryIds(leagueIdSelected, pageCount, leagueStandingUrl)
+    except Exception as err:
+        print("Error occured in getting entries/managers in the league.")
+        print(err)
+        raise
+
+    for entry in tqdm(entries):
+        try:
+            elements, captainId = getplayersPickedForEntryId(entry, GWNumber)
+        except Exception as err:
+            print("Error occured in getting palyers and captain of the entry/manager")
+            print(err)
+            raise
+        if not elements:
+            continue
+        for element in elements:
+            name = playerElementIdToNameMap[element]
+            if name in countOfplayersPicked:
+                countOfplayersPicked[name] += 1
+            else:
+                countOfplayersPicked[name] = 1
+
+        captainName = playerElementIdToNameMap[captainId]
+        if captainName in countOfCaptainsPicked:
+            countOfCaptainsPicked[captainName] += 1
+        else:
+            countOfCaptainsPicked[captainName] = 1
+
+    listOfcountOfplayersPicked = sorted(countOfplayersPicked.items(), key=lambda x: x[1], reverse=True)
+    writeToFile(listOfcountOfplayersPicked, "output/GW" + str(GWNumber) + " Players " + str(leagueIdSelected) + ".csv")
+    listOfCountOfCaptainsPicked = sorted(countOfCaptainsPicked.items(), key=lambda x: x[1], reverse=True)
+    writeToFile(listOfCountOfCaptainsPicked,
+                "output/GW" + str(GWNumber) + " Captains " + str(leagueIdSelected) + ".csv")
+
+if __name__ == '__main__':
+    main()
